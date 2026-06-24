@@ -77,6 +77,7 @@ public function handshake(Request $request)
                 return "OK: ".$tot;
             }
             //attendance
+            $rowsToAppend = [];
             foreach ($arr as $rey) {
                 // $data = preg_split('/\s+/', trim($rey));
                 if(empty($rey)){
@@ -100,11 +101,33 @@ public function handshake(Request $request)
                     //dd($q);
                     DB::table('attendances')->insert($q);
                     $tot++;
+
+                    // Collect row data for Google Sheets
+                    $rowsToAppend[] = [
+                        $q['employee_id'],
+                        $q['timestamp'],
+                        $q['status1'],
+                        $q['status2'],
+                        $q['status3'],
+                        $q['status4'],
+                        $q['status5'],
+                        $q['created_at']->toDateTimeString()
+                    ];
                 // dd(DB::getQueryLog());
             }
+
+            if (!empty($rowsToAppend)) {
+                try {
+                    $sheetService = new \App\Services\GoogleSheetService();
+                    $sheetService->appendRow('sheet1', $rowsToAppend);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Google Sheet Sync Error: ' . $e->getMessage());
+                }
+            }
+
             return "OK: ".$tot;
-        } catch (Throwable $e) {
-            $data['error'] = $e;
+        } catch (\Throwable $e) {
+            $data['error'] = $e->getMessage();
             DB::table('error_log')->insert($data);
             report($e);
             return "ERROR: ".$tot."\n";
