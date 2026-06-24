@@ -15,42 +15,46 @@ class SyncAllAttendance extends Command
     {
         $this->info('Mengambil data absensi dari MySQL...');
 
-        // Mengambil semua data absensi dari tabel 'attendances'
-        // Jika data sangat banyak, disarankan menggunakan chunk() untuk menghemat memori
-        $attendances = DB::table('attendances')->orderBy('timestamp', 'asc')->get();
+        // Karena data sangat banyak (160.000+), kita gunakan chunk()
+        // untuk memproses data per 2000 baris agar tidak kehabisan memori (out of memory)
+        $totalCount = DB::table('attendances')->count();
 
-        if ($attendances->isEmpty()) {
+        if ($totalCount === 0) {
             $this->warn('Tidak ada data absensi di database.');
             return;
         }
 
-        $this->info('Menyiapkan ' . $attendances->count() . ' data untuk dikirim...');
-
-        $rowsToAppend = [];
-        foreach ($attendances as $row) {
-            $rowsToAppend[] = [
-                $row->employee_id,
-                $row->timestamp,
-                $row->status1,
-                $row->status2,
-                $row->status3,
-                $row->status4,
-                $row->status5,
-                $row->created_at
-            ];
-        }
-
-        $this->info('Mengirim data ke Google Sheet (sheet1)...');
+        $this->info('Ditemukan total ' . $totalCount . ' data. Memulai pengiriman per batch (2.000 data per pengiriman)...');
 
         try {
             $sheetService = new GoogleSheetService();
-            
-            // Mengirim data secara massal (bulk) dalam 1 kali request
-            $sheetService->appendRow('sheet1', $rowsToAppend);
-            
-            $this->info('Sinkronisasi massal berhasil! ' . count($rowsToAppend) . ' data telah disalin.');
+            $batchNumber = 1;
+
+            DB::table('attendances')
+                ->orderBy('timestamp', 'asc')
+                ->chunk(2000, function ($attendances) use ($sheetService, &$batchNumber, $totalCount) {
+                    $rowsToAppend = [];
+                    foreach ($attendances as $row) {
+                        $rowsToAppend[] = [
+                            $row->employee_id,
+                            $row->timestamp,
+                            $row->status1,
+                            $row->status2,
+                            $row->status3,
+                            $row->status4,
+                            $row->status5,
+                            $row->created_at
+                        ];
+                    }
+
+                    $this->info('Mengirim Batch #' . $batchNumber . ' (' . count($rowsToAppend) . ' data)...');
+                    $sheetService->appendRow('sheet1', $rowsToAppend);
+                    $batchNumber++;
+                });
+
+            $this->info('Sinkronisasi massal berhasil! Total ' . $totalCount . ' data telah disalin.');
         } catch (\Exception $e) {
-            $this->error('Sinkronisasi gagal: ' . $e->getMessage());
+            $this->error('Sinkronisasi gagal pada Batch #' . $batchNumber . ': ' . $e->getMessage());
         }
     }
 }
