@@ -87,11 +87,17 @@ class DeviceController extends Controller
         $request->validate([
             'employee_id' => 'required|unique:employees,employee_id',
             'name' => 'required|string|max:255',
+            'nik' => 'nullable|string|max:50',
+            'gender' => 'nullable|string|max:20',
+            'department' => 'nullable|string|max:100',
         ]);
 
         DB::table('employees')->insert([
             'employee_id' => $request->input('employee_id'),
+            'nik' => $request->input('nik'),
             'name' => $request->input('name'),
+            'gender' => $request->input('gender'),
+            'department' => $request->input('department'),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -108,11 +114,17 @@ class DeviceController extends Controller
         $request->validate([
             'employee_id' => 'required',
             'name' => 'required|string|max:255',
+            'nik' => 'nullable|string|max:50',
+            'gender' => 'nullable|string|max:20',
+            'department' => 'nullable|string|max:100',
         ]);
 
         DB::table('employees')->where('id', $id)->update([
             'employee_id' => $request->input('employee_id'),
+            'nik' => $request->input('nik'),
             'name' => $request->input('name'),
+            'gender' => $request->input('gender'),
+            'department' => $request->input('department'),
             'updated_at' => now(),
         ]);
 
@@ -122,6 +134,79 @@ class DeviceController extends Controller
     public function DeleteEmployee($id) {
         DB::table('employees')->where('id', $id)->delete();
         return redirect()->route('employees.index')->with('success', 'Karyawan berhasil dihapus!');
+    }
+
+    public function ImportEmployees(Request $request) {
+        $request->validate([
+            'csv_file' => 'required|file',
+        ]);
+
+        $file = $request->file('csv_file');
+        $filePath = $file->getRealPath();
+
+        $handle = fopen($filePath, 'r');
+        if ($handle === false) {
+            return redirect()->back()->with('error', 'Gagal membuka file.');
+        }
+
+        // Read header
+        $header = fgetcsv($handle, 1000, ',');
+        
+        // Detect delimiter: if only one element in header, check semicolon
+        $delimiter = ';';
+        if ($header !== false && count($header) > 1) {
+            // It has multiple columns with comma
+            $delimiter = ',';
+        }
+
+        // Re-read from beginning to parse header and data properly
+        rewind($handle);
+        $headerRow = fgetcsv($handle, 1000, $delimiter);
+
+        $imported = 0;
+        $skipped = 0;
+
+        while (($row = fgetcsv($handle, 1000, $delimiter)) !== false) {
+            // Check if row has enough columns (at least 3: ID, NIK, Nama)
+            if (count($row) < 3) {
+                $skipped++;
+                continue;
+            }
+
+            $rawId = trim($row[0]);
+            $nik = trim($row[1]);
+            $name = trim($row[2]);
+            $gender = isset($row[3]) ? trim($row[3]) : null;
+            $department = isset($row[4]) ? trim($row[4]) : null;
+
+            // Skip empty rows or header duplicate
+            if (empty($rawId) || empty($name) || strtolower($rawId) === 'no id.' || strtolower($rawId) === 'no id') {
+                $skipped++;
+                continue;
+            }
+
+            // Normalize ID: remove leading zeros if numeric
+            $employeeId = is_numeric($rawId) ? (int)$rawId : $rawId;
+
+            // Insert or Update employee mapping
+            DB::table('employees')->updateOrInsert(
+                ['employee_id' => $employeeId],
+                [
+                    'nik' => $nik ?: null,
+                    'name' => $name,
+                    'gender' => $gender ?: null,
+                    'department' => $department ?: null,
+                    'updated_at' => now(),
+                    'created_at' => DB::raw('COALESCE(created_at, NOW())')
+                ]
+            );
+
+            $imported++;
+        }
+
+        fclose($handle);
+
+        return redirect()->route('employees.index')->with('success', "Berhasil mengimpor {$imported} karyawan. (Dilewati: {$skipped})");
     }
 
     // --- ACCESS SESSIONS LIST ---
