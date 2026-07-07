@@ -28,6 +28,7 @@ Route::get('attendance', [DeviceController::class, 'Attendance'])->name('devices
 // Employees CRUD
 Route::get('employees', [DeviceController::class, 'Employees'])->name('employees.index');
 Route::post('employees', [DeviceController::class, 'StoreEmployee'])->name('employees.store');
+Route::post('employees/import', [DeviceController::class, 'ImportEmployees'])->name('employees.import');
 Route::get('employees/{id}/edit', [DeviceController::class, 'EditEmployee'])->name('employees.edit');
 Route::post('employees/{id}', [DeviceController::class, 'UpdateEmployee'])->name('employees.update');
 Route::delete('employees/{id}', [DeviceController::class, 'DeleteEmployee'])->name('employees.destroy');
