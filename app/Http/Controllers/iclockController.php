@@ -43,7 +43,7 @@ public function handshake(Request $request)
          "TransTimes=00:00;14:05\r\n" .
          "TransInterval=1\r\n" .
          "TransFlag=1111000000\r\n" .
-        //  "TimeZone=7\r\n" .
+         "TimeZone=7\r\n" .
          "Realtime=1\r\n" .
          "Encrypt=0";
 
