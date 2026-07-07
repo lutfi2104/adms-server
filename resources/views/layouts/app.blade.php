@@ -53,6 +53,12 @@
                         <a class="nav-link" href="{{ route('devices.Attendance') }}">Attendance</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{{ route('access.sessions') }}">Keluar-Masuk (Akses)</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('employees.index') }}">Karyawan</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ route('devices.DeviceLog') }}">Device Log</a>
                     </li>
                     <li class="nav-item">

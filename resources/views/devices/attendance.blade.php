@@ -17,13 +17,13 @@
                     <th>ID</th>
                     <th>SN</th>
                     <th>Employee ID</th>
+                    <th>Nama Karyawan</th>
                     <th>Timestamp</th>
                     <th>Status 1</th>
                     <th>Status 2</th>
                     <th>Status 3</th>
                     <th>Status 4</th>
                     <th>Status 5</th>
-                    
                 </tr>
             </thead>
             <tbody>
@@ -32,13 +32,13 @@
                         <td>{{ $attendance->id }}</td>
                         <td>{{ $attendance->sn }}</td>
                         <td>{{ $attendance->employee_id }}</td>
+                        <td><strong>{{ $attendance->employee_name ?? 'Belum Terdaftar' }}</strong></td>
                         <td>{{ $attendance->timestamp }}</td>
                         <td>{{ $attendance->status1 }}</td>
                         <td>{{ $attendance->status2 }}</td>
                         <td>{{ $attendance->status3 }}</td>
                         <td>{{ $attendance->status4 }}</td>
                         <td>{{ $attendance->status5 }}</td>
-
                     </tr>
                 @endforeach
             </tbody>

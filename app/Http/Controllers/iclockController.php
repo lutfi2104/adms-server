@@ -76,6 +76,11 @@ public function handshake(Request $request)
                 }
                 return "OK: ".$tot;
             }
+            // Get device details to determine type
+            $sn = $request->input('SN');
+            $device = DB::table('devices')->where('no_sn', $sn)->first();
+            $deviceType = $device ? $device->type : 'entry';
+
             //attendance
             $rowsToAppend = [];
             foreach ($arr as $rey) {
@@ -101,6 +106,88 @@ public function handshake(Request $request)
                     //dd($q);
                     DB::table('attendances')->insert($q);
                     $tot++;
+
+                    // --- PROCESS ACCESS CONTROL SESSION ---
+                    try {
+                        $employeeId = $q['employee_id'];
+                        $timestamp = Carbon::parse($q['timestamp']);
+
+                        if ($deviceType === 'entry') {
+                            // Check if there is already a recent scan within the tolerance window (e.g. 60 seconds) to avoid double scanning
+                            $recentEntry = DB::table('access_sessions')
+                                ->where('employee_id', $employeeId)
+                                ->where('status', 'open')
+                                ->where('entry_time', '>=', $timestamp->copy()->subSeconds(60)->toDateTimeString())
+                                ->first();
+
+                            if (!$recentEntry) {
+                                // If there's an existing open session, close it as 'no_exit' because they are scanning 'entry' again
+                                DB::table('access_sessions')
+                                    ->where('employee_id', $employeeId)
+                                    ->where('status', 'open')
+                                    ->update([
+                                        'status' => 'no_exit',
+                                        'updated_at' => now()
+                                    ]);
+
+                                // Start a new open session
+                                DB::table('access_sessions')->insert([
+                                    'employee_id' => $employeeId,
+                                    'entry_time' => $timestamp,
+                                    'entry_sn' => $sn,
+                                    'status' => 'open',
+                                    'created_at' => now(),
+                                    'updated_at' => now()
+                                ]);
+                            }
+                        } else {
+                            // This is an 'exit' device
+                            // Check if there is already a recent exit scan within 60 seconds to avoid duplicate exit logs
+                            $recentExit = DB::table('access_sessions')
+                                ->where('employee_id', $employeeId)
+                                ->where('status', 'completed')
+                                ->where('exit_time', '>=', $timestamp->copy()->subSeconds(60)->toDateTimeString())
+                                ->first();
+
+                            if (!$recentExit) {
+                                // Look for the most recent open session for this employee
+                                $openSession = DB::table('access_sessions')
+                                    ->where('employee_id', $employeeId)
+                                    ->where('status', 'open')
+                                    ->orderBy('entry_time', 'desc')
+                                    ->first();
+
+                                if ($openSession) {
+                                    // Calculate duration in seconds
+                                    $entryTime = Carbon::parse($openSession->entry_time);
+                                    $durationSeconds = $timestamp->diffInSeconds($entryTime);
+
+                                    DB::table('access_sessions')
+                                        ->where('id', $openSession->id)
+                                        ->update([
+                                            'exit_time' => $timestamp,
+                                            'exit_sn' => $sn,
+                                            'duration_seconds' => $durationSeconds,
+                                            'status' => 'completed',
+                                            'updated_at' => now()
+                                        ]);
+                                } else {
+                                    // Missing entry! Create a 'no_entry' completed session
+                                    DB::table('access_sessions')->insert([
+                                        'employee_id' => $employeeId,
+                                        'exit_time' => $timestamp,
+                                        'exit_sn' => $sn,
+                                        'status' => 'no_entry',
+                                        'created_at' => now(),
+                                        'updated_at' => now()
+                                    ]);
+                                }
+                            }
+                        }
+                    } catch (\Throwable $sessionEx) {
+                        \Illuminate\Support\Facades\Log::error('Access Control Session Error: ' . $sessionEx->getMessage());
+                    }
+                    // --- END PROCESS ACCESS CONTROL SESSION ---
 
                     // Collect row data for Google Sheets
                     $rowsToAppend[] = [

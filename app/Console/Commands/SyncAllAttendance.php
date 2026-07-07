@@ -26,9 +26,9 @@ class SyncAllAttendance extends Command
 
         $this->info('Ditemukan total ' . $totalCount . ' data. Memulai pengiriman per batch (2.000 data per pengiriman)...');
 
+        $batchNumber = 1;
         try {
             $sheetService = new GoogleSheetService();
-            $batchNumber = 1;
 
             DB::table('attendances')
                 ->orderBy('timestamp', 'asc')
